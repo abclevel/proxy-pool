@@ -68,7 +68,6 @@ def getProxy(protocal, link, page=1):
             threadList = []
             for i in range(html.length):
                 if (i > 0):
-                    # threadCallBack(f'{i}')
                     t = threading.Thread(
                         target=threadCallBack,
                         args=(f'{i}', ),
