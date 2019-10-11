@@ -42,7 +42,7 @@ def getProxy(protocal, link, page=1):
                             if not mysql:
                                 return
                             # 检查代理是否有效
-                            power = checkProxy(f'https://{host}:{port}')
+                            power = checkProxy(f'{protocal}://{host}:{port}')
                             # 检查proxy 是否存在，否则插入DB
                             mysql['cursor'].execute(
                                 f'select count(*) from proxy where host = "{host}" and port = "{port}"',
