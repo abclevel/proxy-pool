@@ -22,67 +22,6 @@ UA = {
 }
 
 
-# 获取代理
-def getProxy(protocal, link, page=1):
-    try:
-        url = f'https://www.xicidaili.com/{link}/{page}'
-        res = requests.get(url, headers={'User-Agent': UA['PC']})
-        if (res and res.status_code == 200):
-            html = pq(res.text)('#ip_list tr')
-
-            # 线程回调
-            def threadCallBack(i):
-                tds = pq(html[int(i)]).find('td')
-                if (tds.length > 2):
-                    host = pq(tds[1]).text()
-                    port = pq(tds[2]).text()
-                    if (host and port):
-                        try:
-                            # 建立连接
-                            mysql = connect()
-                            if not mysql:
-                                return
-                            # 检查代理是否有效
-                            power = checkProxy(f'{protocal}://{host}:{port}')
-                            # 检查proxy 是否存在，否则插入DB
-                            mysql['cursor'].execute(
-                                f'select count(*) from proxy where host = "{host}" and port = "{port}"',
-                            )
-                            has_proxy = mysql['cursor'].fetchone()[0]
-                            # 如果代理有效 && DB 无数据
-                            if power and not has_proxy:
-                                print(f'insert:{host}:{port}')
-                                mysql['cursor'].execute(
-                                    f'insert into proxy(host,port,protocal) values("{host}","{port}","{protocal}")'
-                                )
-                                mysql['db'].commit()
-                            # 如果代理无效 && DB 有数据
-                            if not power and has_proxy:
-                                print(f'delete:{host}:{port}')
-                                mysql['cursor'].execute(
-                                    f'delete from proxy where host = "{host}" and port = "{port}"'
-                                )
-                                mysql['db'].commit()
-                            # 关闭mysql
-                            mysql['db'].close()
-                        except Exception as e1:
-                            print('---e1---', e1)
-
-            threadList = []
-            for i in range(html.length):
-                if (i > 0):
-                    t = threading.Thread(
-                        target=threadCallBack,
-                        args=(f'{i}', ),
-                    )
-                    t.start()
-                    threadList.append(t)
-            for t in threadList:
-                t.join()
-    except Exception as e:
-        print('---e---', e)
-
-
 # 检查代理是否有效
 def checkProxy(proxylink):
     try:
@@ -175,19 +114,136 @@ def proxy(url, method='get', params={}, headers={}, count=1):
             )
             return ret
     except Exception as e:
-        if count < 5:
+        if count < 6:
             print('proxy error', proxylink['id'])
             deleteProxy(proxylink['id'])
             return proxy(url, method, params, headers, count + 1)
-        print(e)
+        print('proxy error 2:', e)
+
+
+# 线程回调
+def threadCallback(protocal, host, port):
+    def cb():
+        try:
+            # 建立连接
+            mysql = connect()
+            if not mysql:
+                return
+            # 检查代理是否有效
+            power = checkProxy(f'{protocal}://{host}:{port}')
+            # 检查proxy 是否存在，否则插入DB
+            mysql['cursor'].execute(
+                f'select count(*) from proxy where host = "{host}" and port = "{port}"',
+            )
+            has_proxy = mysql['cursor'].fetchone()[0]
+            # 如果代理有效 && DB 无数据
+            if power and not has_proxy:
+                print(f'insert:{host}:{port}')
+                mysql['cursor'].execute(
+                    f'insert into proxy(host,port,protocal) values("{host}","{port}","{protocal}")'
+                )
+                mysql['db'].commit()
+            # 如果代理无效 && DB 有数据
+            if not power and has_proxy:
+                print(f'delete:{host}:{port}')
+                mysql['cursor'].execute(
+                    f'delete from proxy where host = "{host}" and port = "{port}"'
+                )
+                mysql['db'].commit()
+            # 关闭mysql
+            mysql['db'].close()
+        except Exception as e1:
+            print('---e1---', e1)
+
+    t = threading.Thread(target=cb)
+    t.start()
+    return t
+
+
+# 西刺客代理
+def xiciProxy(protocal, link, page=1):
+    try:
+        url = f'https://www.xicidaili.com/{link}/{page}'
+        res = requests.get(
+            url,
+            headers={'User-Agent': UA['PC']},
+        )
+        if (res and res.status_code == 200):
+            html = pq(res.text)('#ip_list tr')
+            threadList = []
+            for i in range(html.length):
+                if (i > 0):
+                    tds = pq(html[int(i)]).find('td')
+                    if (tds.length > 2):
+                        host = pq(tds[1]).text()
+                        port = pq(tds[2]).text()
+                        if (host and port):
+                            t = threadCallback(protocal, host, port)
+                            threadList.append(t)
+            for t in threadList:
+                t.join()
+        if res and res.status_code != 200:
+            print('xici----', res.status_code)
+    except Exception as e:
+        print('---e---', e)
+
+
+# 快代理
+def kuaiProxy(link='inha', page=1):
+    try:
+        url = f'https://www.kuaidaili.com/free/{link}/{page}/'
+        res = requests.get(url, headers={'User-Agent': UA['PC']})
+        if res and res.status_code == 200:
+            html = pq(res.text)('#list tr')
+            if html.length:
+                threadList = []
+                for i in range(html.length):
+                    if i > 0:
+                        tds = pq(html[int(i)]).find('td')
+                        if (tds.length > 2):
+                            host = pq(tds[0]).text()
+                            port = pq(tds[1]).text()
+                            protocal = pq(tds[3]).text().lower()
+                            if (host and port and protocal):
+                                t = threadCallback(protocal, host, port)
+                                threadList.append(t)
+                for t in threadList:
+                    t.join()
+        if res and res.status_code != 200:
+            print('kuai---', res.status_code)
+    except Exception as e:
+        print('kuai proxy:', e)
 
 
 def init():
-    types = {'https': 'wn', 'http': 'wt'}
-    for protocal in types:
+    # kuaiProxy()
+    # return
+    def xici():
+        types = {'https': 'wn', 'http': 'wt'}
         for i in range(30):
-            print('---page----', i + 1)
-            getProxy(protocal, types[protocal], i + 1)
+            for protocal in types:
+                print('---page----', i + 1)
+                time.sleep(1)
+                xiciProxy(protocal, types[protocal], i + 1)
+
+    def kuai():
+        links = {'link1': 'inha', 'link2': 'intr'}
+        for i in range(30):
+            for link in links:
+                print('---page----', i + 1)
+                time.sleep(1)
+                kuaiProxy(link, i + 1)
+
+    cbs = [xici, kuai]
+    # threadList = []
+    for cb in cbs:
+        cb()
+    # for cb in cbs:
+    #     t = threading.Thread(target=cb)
+    #     t.start()
+    #     threadList.append(t)
+    # for i in threadList:
+    #     i.join()
 
 
 if __name__ == '__main__':
