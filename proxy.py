@@ -3,11 +3,12 @@ from pyquery import PyQuery as pq
 import pymysql
 import threading
 import time
+import random
 
 # Config
 MYSQL = {
     'host': 'localhost',
-    'username': 'root',
+    'username': 'admin',
     'password': 'password',
     'dbname': 'ml',
 }
@@ -50,12 +51,14 @@ def getProxy(protocal, link, page=1):
                             has_proxy = mysql['cursor'].fetchone()[0]
                             # 如果代理有效 && DB 无数据
                             if power and not has_proxy:
+                                print(f'insert:{host}:{port}')
                                 mysql['cursor'].execute(
                                     f'insert into proxy(host,port,protocal) values("{host}","{port}","{protocal}")'
                                 )
                                 mysql['db'].commit()
                             # 如果代理无效 && DB 有数据
                             if not power and has_proxy:
+                                print(f'delete:{host}:{port}')
                                 mysql['cursor'].execute(
                                     f'delete from proxy where host = "{host}" and port = "{port}"'
                                 )
@@ -89,7 +92,6 @@ def checkProxy(proxylink):
             timeout=5,
         )
         if (ret and ret.status_code == 200):
-            print(proxylink)
             return True
     except Exception as e:
         pass
@@ -110,6 +112,76 @@ def connect():
         print('connect error:', e)
 
 
+# 删除无效proxy
+def deleteProxy(id):
+    try:
+        mysql = connect()
+        if not mysql:
+            print('mysql 链接失败')
+        mysql['cursor'].execute(
+            f'select count(*) from proxy where id = "{id}"')
+        has = mysql['cursor'].fetchone()[0]
+        if has:
+            mysql['cursor'].execute(f'delete from proxy where id = "{id}"')
+            mysql['db'].commit()
+    except Exception as e:
+        pass
+
+
+# 获取随机proxy
+def randomproxy():
+    try:
+        mysql = connect()
+        if not mysql:
+            print('mysql 链接失败')
+            return
+        mysql['cursor'].execute(f'select count(*) from proxy')
+        proxycount = mysql['cursor'].fetchone()[0]
+        if proxycount < 50:
+            print('代理数小于50，请尽快爬取')
+        if proxycount:
+            mysql['cursor'].execute(
+                f'select id,host,port,protocal from proxy limit 1 offset {random.randint(0,proxycount-1)} '
+            )
+            proxyrow = mysql['cursor'].fetchone()
+            if proxyrow:
+                return {
+                    'id': proxyrow[0],
+                    'link': f'{proxyrow[3]}://{proxyrow[1]}:{proxyrow[2]}'
+                }
+    except Exception as e:
+        print(e)
+
+
+# 代理方法
+def proxy(url, method='get', params={}, headers={}, count=1):
+    try:
+        proxylink = randomproxy()
+        if not proxylink:
+            return
+        proxies = {
+            'https': proxylink['link'],
+            'http': proxylink['link'],
+        }
+        if method == 'get':
+            ret = requests.get(url, headers=headers, proxies=proxies)
+            return ret
+        else:
+            ret = requests.post(
+                url,
+                data=params,
+                headers=headers,
+                proxies=proxies,
+            )
+            return ret
+    except Exception as e:
+        if count < 5:
+            print('proxy error', proxylink['id'])
+            deleteProxy(proxylink['id'])
+            return proxy(url, method, params, headers, count)
+        print(e)
+
+
 def init():
     types = {'https': 'wn', 'http': 'wt'}
     for protocal in types:
@@ -118,4 +190,5 @@ def init():
             getProxy(protocal, types[protocal], i + 1)
 
 
-init()
+if __name__ == '__main__':
+    init()
