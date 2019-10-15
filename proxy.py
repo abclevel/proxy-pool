@@ -223,7 +223,7 @@ def init():
         for i in range(30):
             for protocal in types:
                 print('---page----', i + 1)
-                time.sleep(1)
+                time.sleep(2)
                 xiciProxy(protocal, types[protocal], i + 1)
 
     def kuai():
@@ -231,7 +231,7 @@ def init():
         for i in range(30):
             for link in links:
                 print('---page----', i + 1)
-                time.sleep(1)
+                time.sleep(2)
                 kuaiProxy(link, i + 1)
 
     cbs = [xici, kuai]
