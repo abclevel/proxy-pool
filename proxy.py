@@ -178,7 +178,7 @@ def proxy(url, method='get', params={}, headers={}, count=1):
         if count < 5:
             print('proxy error', proxylink['id'])
             deleteProxy(proxylink['id'])
-            return proxy(url, method, params, headers, count)
+            return proxy(url, method, params, headers, count + 1)
         print(e)
 
 
